@@ -1,46 +1,45 @@
-import { ethers } from "ethers";
-import { KMS } from "aws-sdk";
+import { recoverAddress, keccak256 } from "ethers";
+import { KMSClient, SignCommand, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 import * as asn1 from "asn1.js";
 import BN from "bn.js";
-import { AwsKmsSignerCredentials } from "../index";
 
 /* this asn1.js library has some funky things going on */
 /* eslint-disable func-names */
 
-const EcdsaSigAsnParse: { decode: (asnStringBuffer: Buffer, format: "der") => { r: BN; s: BN } } = asn1.define(
-  "EcdsaSig",
-  function (this: any) {
+const EcdsaSigAsnParse: {
+  decode: (asnStringBuffer: Buffer, format: "der") => { r: BN; s: BN };
+} =
+  // rome-ignore lint/suspicious/noExplicitAny: <explanation>
+  asn1.define("EcdsaSig", function (this: any) {
     // parsing this according to https://tools.ietf.org/html/rfc3279#section-2.2.3
     this.seq().obj(this.key("r").int(), this.key("s").int());
-  }
-);
-const EcdsaPubKey = asn1.define("EcdsaPubKey", function (this: any) {
-  // parsing this according to https://tools.ietf.org/html/rfc5480#section-2
-  this.seq().obj(this.key("algo").seq().obj(this.key("a").objid(), this.key("b").objid()), this.key("pubKey").bitstr());
-});
-/* eslint-enable func-names */
+  });
 
-export async function sign(digest: Buffer, kmsCredentials: AwsKmsSignerCredentials) {
-  const kms = new KMS(kmsCredentials);
-  const params: KMS.SignRequest = {
-    // key id or 'Alias/<alias>'
-    KeyId: kmsCredentials.keyId,
-    Message: digest,
-    // 'ECDSA_SHA_256' is the one compatible with ECC_SECG_P256K1.
-    SigningAlgorithm: "ECDSA_SHA_256",
-    MessageType: "DIGEST",
-  };
-  const res = await kms.sign(params).promise();
-  return res;
+// rome-ignore lint/suspicious/noExplicitAny: <explanation>
+const EcdsaPubKey = asn1.define("EcdsaPubKey", function (this: any): void {
+  // parsing this according to https://tools.ietf.org/html/rfc5480#section-2
+  this.seq().obj(
+    this.key("algo").seq().obj(this.key("a").objid(), this.key("b").objid()),
+    this.key("pubKey").bitstr(),
+  );
+});
+
+export async function sign(input: { digest: Buffer; keyId: string }, kms: KMSClient) {
+  const res = await kms.send(
+    new SignCommand({
+      // key id or 'Alias/<alias>'
+      KeyId: input.keyId,
+      Message: input.digest,
+      // 'ECDSA_SHA_256' is the one compatible with ECC_SECG_P256K1.
+      SigningAlgorithm: "ECDSA_SHA_256",
+      MessageType: "DIGEST",
+    }),
+  );
+  return res.Signature;
 }
 
-export async function getPublicKey(kmsCredentials: AwsKmsSignerCredentials) {
-  const kms = new KMS(kmsCredentials);
-  return kms
-    .getPublicKey({
-      KeyId: kmsCredentials.keyId,
-    })
-    .promise();
+export async function getPublicKey(keyId: string, kms: KMSClient) {
+  return (await kms.send(new GetPublicKeyCommand({ KeyId: keyId }))).PublicKey;
 }
 
 export function getEthereumAddress(publicKey: Buffer): string {
@@ -55,7 +54,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   // more info: https://www.oreilly.com/library/view/mastering-ethereum/9781491971932/ch04.html
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
-  const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
+  const address = keccak256(pubKeyBuffer); // keccak256 hash of publicKey
   const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
   return EthAddr;
 }
@@ -73,16 +72,30 @@ export function findEthereumSig(signature: Buffer) {
   return { r, s: s.gt(secp256k1halfN) ? secp256k1N.sub(s) : s };
 }
 
-export async function requestKmsSignature(plaintext: Buffer, kmsCredentials: AwsKmsSignerCredentials) {
-  const signature = await sign(plaintext, kmsCredentials);
-  if (signature.$response.error || signature.Signature === undefined) {
-    throw new Error(`AWS KMS call failed with: ${signature.$response.error}`);
+export async function requestKmsSignature(
+  input: { plaintext: Buffer; keyId: string },
+  kms: KMSClient,
+) {
+  try {
+    const signature = await sign(
+      {
+        digest: input.plaintext,
+        keyId: input.keyId,
+      },
+      kms,
+    );
+    if (!signature) {
+      throw new Error("AWS KMS call failed: no signature");
+    }
+
+    return findEthereumSig(Buffer.from(signature));
+  } catch (error) {
+    throw new Error(`AWS KMS call failed: ${error}`);
   }
-  return findEthereumSig(signature.Signature as Buffer);
 }
 
 function recoverPubKeyFromSig(msg: Buffer, r: BN, s: BN, v: number) {
-  return ethers.utils.recoverAddress(`0x${msg.toString("hex")}`, {
+  return recoverAddress(`0x${msg.toString("hex")}`, {
     r: `0x${r.toString("hex")}`,
     s: `0x${s.toString("hex")}`,
     v,
