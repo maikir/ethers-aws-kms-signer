@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "target": "esnext",
-    "module": "esnext",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "strict": false,
     "declaration": true,
