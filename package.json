@@ -1,9 +1,9 @@
 {
-  "name": "ethers-aws-kms-signer",
-  "version": "0.1.0",
+  "name": "@dennisdang/ethers-aws-kms-signer",
+  "version": "1.0.0",
   "description": "An Ethers.js compatible signer that connects to AWS KMS",
   "license": "MIT",
-  "repository": "dangdennis/ethers-aws-kms-signer",
+  "repository": "https://github.com/dangdennis/ethers-aws-kms-signer",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": {
@@ -15,13 +15,13 @@
     "dist",
     "src"
   ],
+  "keywords": [],
   "scripts": {
     "build": "tsc",
     "check": "npx rome check src/",
     "format": "npx rome format src/ --write",
     "test": "npx tsc --project tsconfig.tests.json && npx vitest run"
   },
-  "keywords": [],
   "dependencies": {
     "@aws-sdk/client-kms": "3.378.0",
     "@types/node": "20.4.5",
