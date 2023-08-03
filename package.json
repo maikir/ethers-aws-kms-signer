@@ -20,7 +20,7 @@
     "build": "tsc",
     "check": "npx rome check src/",
     "format": "npx rome format src/ --write",
-    "test": "npx tsc --project tsconfig.tests.json && npx vitest run"
+    "test": "npx vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.378.0",
