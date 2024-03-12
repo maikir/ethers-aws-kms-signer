@@ -1,4 +1,4 @@
-import { recoverAddress, keccak256 } from "ethers";
+import { recoverAddress, keccak256, getAddress } from "ethers";
 import {
   KMSClient,
   SignCommand,
@@ -63,7 +63,8 @@ export function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  let EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  EthAddr = getAddress(EthAddr)
   return EthAddr;
 }
 
