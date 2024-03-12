@@ -11,6 +11,7 @@ export class AwsKmsSigner extends ethers.AbstractSigner {
   readonly kms: KMSClient;
   readonly keyId: string;
   ethereumAddress: string;
+  address: string;
 
   constructor(keyId: string, kms: KMSClient, provider: ethers.Provider) {
     super(provider);
@@ -22,6 +23,7 @@ export class AwsKmsSigner extends ethers.AbstractSigner {
     if (this.ethereumAddress === undefined) {
       const key = await getPublicKey(this.keyId, this.kms);
       this.ethereumAddress = getEthereumAddress(Buffer.from(key));
+      this.address = this.ethereumAddress
     }
     return Promise.resolve(this.ethereumAddress);
   }
